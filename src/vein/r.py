@@ -9,6 +9,8 @@ import tty
 import subprocess
 from pydantic import BaseModel
 import rich.prompt
+import io
+import itertools
 
 coloredlogs.install()
 logger = logging.getLogger(__file__)
@@ -157,10 +159,8 @@ def main4():
         shell=True,
         text=True,
     )
-    ssh_infos = process_string(result.stdout.strip().split("\n"))
+    ssh_infos = process_string([line for line in result.stdout.strip().split("\n") if line])
     table = Table(
-        selected_row=0,
-        rotate_selection=True,
         selected_row_style=Style(bgcolor="red"),
     )
     table.add_column("pid")
@@ -180,21 +180,32 @@ def main4():
         )
 
     try:
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
         tty.setraw(sys.stdin.fileno())
-        while True:
-            rich.print(table)
-            ready, _, _ = select.select([sys.stdin], [], [], 1.0)
-            if not ready: continue
-            char = sys.stdin.read(1)
-            match char:
-                case '\x1b':
-                    break
-                case 'j':
-                    table.move_selection_down()
-                case 'k':
-                    table.move_selection_up()
-                case _:
-                    lines.append( f"{char} pressed!" )
+        for i in itertools.count():
+            if 0 < i:
+                ready, _, _ = select.select([sys.stdin], [], [], 1.0)
+                if not ready: continue
+                char = sys.stdin.read(1)
+                match char:
+                    case '\x1b':
+                        break
+                    case '\n':
+                        break
+                    case 'j':
+                        table.move_selection_down()
+                    case 'k':
+                        table.move_selection_up()
+                    case _:
+                        pass
+            
+            # render
+            out = io.StringIO()
+            console = rich.console.Console(force_terminal=True, file=out)
+            console.print(table)
+            print(out.getvalue().replace("\n", "\r\n"), end="", flush=True)
+
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
