@@ -11,34 +11,20 @@ from pydantic import BaseModel
 import rich.prompt
 import io
 import itertools
+from os import kill
+from signal import SIGTERM
 
 coloredlogs.install()
 logger = logging.getLogger(__file__)
-import time
 
-from rich.live import Live
-from rich.table import Table
 import rich
 from rich.style import Style
+from rich.align import Align
+from rich.console import Group
+from rich.text import Text
 from rich_interactive.interactive_table import InteractiveTable as Table
-
-def main():
-    table = Table()
-    table.add_column("PID")
-    table.add_column("Option")
-    table.add_column("Level")
-
-    with Live(table, refresh_per_second=4):  # update 4 times a second to feel fluid
-        for row in range(10**9):
-            ready, _, _ = select.select([sys.stdin], [], [], 0.1)
-            if ready:
-                input_char = sys.stdin.read(1)
-                break
-            time.sleep(0.1)  # arbitrary delay
-            # update the renderable internally
-            table.add_row(f"{row}", f"description {row}", "[red]ERROR")
-
-        table.add_row(f"{row}", f"description {row}", input_char)
+from rich_interactive.interactive_panel import InteractivePanel as Panel
+from rich_interactive.interactive_layout import InteractiveLayout as Layout
 
 def save_screen() -> None:
     sys.stdout.write('\033[?47h')
@@ -50,8 +36,6 @@ def restore_screen() -> None:
 #    sys.stdout.write('\033[?u')
     sys.stdout.flush()
 
-
-
 class ssh_info(BaseModel):
     pid: int
     src_host: str
@@ -59,6 +43,8 @@ class ssh_info(BaseModel):
     src_port: int
     dst_port: int
     LR: str
+    def kill(self):
+        kill(self.pid, SIGTERM)
 
 # 文字列処理
 def process_string(lines: list[str]) -> list[ssh_info]:
@@ -82,77 +68,47 @@ def process_string(lines: list[str]) -> list[ssh_info]:
 def pformat(ssh_info: ssh_info) -> str:
     return f"{ssh_info.pid} {ssh_info.src_host} {ssh_info.dst_host} {ssh_info.src_port}:{ssh_info.src_host}:{ssh_info.dst_port} {ssh_info.LR}"
 
-
-def main2() -> str:
-    save_screen()
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    print("\x1b[2J\x1b[H", end="", flush=True)
+def process_creator():
     try:
-        tty.setraw(sys.stdin.fileno())
         while True:
-            lines: list[str] = list()
-            ready, _, _ = select.select([sys.stdin], [], [], 0.4)
-            result = subprocess.run(
-                "pgrep -a autossh",
-                stdout=subprocess.PIPE,
-                shell=True,
-                text=True,
+            dst_port = rich.prompt.IntPrompt.ask(
+                "dst_port",
+                default=8188,
             )
-            lines += [
-                pformat(ssh_info) for ssh_info in
-                process_string(result.stdout.strip().split("\n"))
-            ]
-            if ready:
-                char = sys.stdin.read(1)
-                match char:
-                    case '\x1b':
-                        return char
-                    case _:
-                        lines.append( f"{char} pressed!" )
-            lines.append("> ")
-            print("\x1b[2J\x1b[H"+"\r\n".join(lines), end="", flush=True)
+            if dst_port in range(65536):
+                break
+
+        while True:
+            dst_host = rich.prompt.Prompt.ask(
+                "dst_host",
+                default="marisa",
+            )
+            if True:
+                break
+
+        while True:
+            src_port = rich.prompt.IntPrompt.ask(
+                "src_port",
+                default=dst_port,
+            )
+            if src_port in range(65536):
+                break
+
+        while True:
+            src_host = rich.prompt.Prompt.ask(
+                "src_host",
+                default="localhost",
+            )
+            if True:
+                break
+        cmd = f"autossh -fNL {dst_port}:{src_host}:{src_port} {dst_host}"
+        result = subprocess.run(cmd, shell=True)
+        assert result.returncode == 0
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        restore_screen()
+        return ' '
 
-def main3():
-    while True:
-        dst_port = rich.prompt.IntPrompt.ask(
-            "dst_port",
-            default=8188,
-        )
-        if dst_port in range(65536):
-            break
 
-    while True:
-        dst_host = rich.prompt.Prompt.ask(
-            "dst_host",
-            default="marisa",
-        )
-        if True:
-            break
-
-    while True:
-        src_port = rich.prompt.IntPrompt.ask(
-            "src_port",
-            default=dst_port,
-        )
-        if src_port in range(65536):
-            break
-
-    while True:
-        src_host = rich.prompt.Prompt.ask(
-            "src_host",
-            default="localhost",
-        )
-        if True:
-            break
-    cmd = f"autossh -fNL {dst_port}:{src_host}:{src_port} {dst_host}"
-    result = subprocess.run(cmd, shell=True)
-    assert result.returncode == 0
-
-def main4():
+def process_selecter() -> str:
     result = subprocess.run(
         "pgrep -a autossh",
         stdout=subprocess.PIPE,
@@ -161,7 +117,8 @@ def main4():
     )
     ssh_infos = process_string([line for line in result.stdout.strip().split("\n") if line])
     table = Table(
-        selected_row_style=Style(bgcolor="red"),
+        title="autossh process",
+        selected_row_style=Style(bgcolor="cyan"),
     )
     table.add_column("pid")
     table.add_column("dst host")
@@ -183,31 +140,65 @@ def main4():
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         tty.setraw(sys.stdin.fileno())
+        sys.stdout.write('\033[?s')
         for i in itertools.count():
+            out = io.StringIO()
+            console = rich.console.Console(force_terminal=True, file=out)
+
             if 0 < i:
                 ready, _, _ = select.select([sys.stdin], [], [], 1.0)
                 if not ready: continue
                 char = sys.stdin.read(1)
                 match char:
-                    case '\x1b':
-                        break
-                    case '\n':
-                        break
+                    case '\x03' | '\x1b' | 'q':
+                        return "q"
+                    case 'x':
+                        ssh_infos[table.selected_row].kill()
+                        return 'x'
+                    case 'c':
+                        return 'c'
                     case 'j':
                         table.move_selection_down()
                     case 'k':
                         table.move_selection_up()
                     case _:
-                        pass
+                        console.print(f"{char.__repr__()} pressed")
             
             # render
-            out = io.StringIO()
-            console = rich.console.Console(force_terminal=True, file=out)
-            console.print(table)
-            print(out.getvalue().replace("\n", "\r\n"), end="", flush=True)
+            _desc = {
+                "j/k": "move selection",
+                "x": "kill process",
+                "c": "create tunnel",
+                "q": "quit",
+            }
+            desc = sum([[(f"{k} ", "bold magenta"), f"{v} "] for k, v in _desc.items()], [])
+
+            console.print(
+                Align.center(
+                    Group(
+                        table,
+                        Text.assemble(
+                            *desc,
+                            justify="center"
+                        )
+                    ),
+                    style="on black",
+                )
+            )
+            print("\033[2J\033[H", end="", flush=True)
+            print(
+                out.getvalue().replace("\n", "\r\n"),
+                end="",
+                flush=True
+            )
 
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 if __name__ == "__main__":
-    main4()
+    state = ' '
+    while state != 'q':
+        if state == 'c':
+            state = process_creator()
+        else:
+            state = process_selecter()
