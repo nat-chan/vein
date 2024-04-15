@@ -16,6 +16,7 @@ import time
 
 from rich.live import Live
 from rich.table import Table
+from fzf import Fzf, fzf
 
 def main():
     table = Table()
@@ -112,7 +113,6 @@ def main2() -> str:
         restore_screen()
 
 def main3():
-
     while True:
         dst_port = rich.prompt.IntPrompt.ask(
             "dst_port",
@@ -148,7 +148,18 @@ def main3():
     result = subprocess.run(cmd, shell=True)
     assert result.returncode == 0
 
+@fzf()
+def hoge() -> list[ssh_info]: 
+    result = subprocess.run(
+        "pgrep -a autossh",
+        stdout=subprocess.PIPE,
+        shell=True,
+        text=True,
+    )
+    choices = result.stdout.strip().split("\n")
+    print(choices)
+    return [process_string(choices)]
+
 
 if __name__ == "__main__":
-    main2()
-    main3()
+    hoge()
