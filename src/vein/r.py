@@ -16,7 +16,9 @@ import time
 
 from rich.live import Live
 from rich.table import Table
-from fzf import Fzf, fzf
+import rich
+from rich.style import Style
+from rich_interactive.interactive_table import InteractiveTable as Table
 
 def main():
     table = Table()
@@ -148,18 +150,53 @@ def main3():
     result = subprocess.run(cmd, shell=True)
     assert result.returncode == 0
 
-@fzf()
-def hoge() -> list[ssh_info]: 
+def main4():
     result = subprocess.run(
         "pgrep -a autossh",
         stdout=subprocess.PIPE,
         shell=True,
         text=True,
     )
-    choices = result.stdout.strip().split("\n")
-    print(choices)
-    return [process_string(choices)]
+    ssh_infos = process_string(result.stdout.strip().split("\n"))
+    table = Table(
+        selected_row=0,
+        rotate_selection=True,
+        selected_row_style=Style(bgcolor="red"),
+    )
+    table.add_column("pid")
+    table.add_column("dst host")
+    table.add_column("dst port")
+    table.add_column("src host")
+    table.add_column("src port")
+    table.add_column("LR")
+    for ssh_info in ssh_infos:
+        table.add_row(
+            f"{ssh_info.pid}",
+            f"{ssh_info.dst_host}",
+            f"{ssh_info.dst_port}",
+            f"{ssh_info.src_host}",
+            f"{ssh_info.src_port}",
+            f"{ssh_info.LR}",
+        )
 
+    try:
+        tty.setraw(sys.stdin.fileno())
+        while True:
+            rich.print(table)
+            ready, _, _ = select.select([sys.stdin], [], [], 1.0)
+            if not ready: continue
+            char = sys.stdin.read(1)
+            match char:
+                case '\x1b':
+                    break
+                case 'j':
+                    table.move_selection_down()
+                case 'k':
+                    table.move_selection_up()
+                case _:
+                    lines.append( f"{char} pressed!" )
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 if __name__ == "__main__":
-    hoge()
+    main4()
