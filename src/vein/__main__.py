@@ -77,7 +77,7 @@ def process_string(lines: list[str]) -> list[ssh_info]:
 def process_creator():
     dst_port = Completer("dst port")(default="8188")
     if dst_port is None: return " " 
-    dst_host = Completer("dst host")(default="marisa")
+    dst_host = Completer("dst host")(default=-1)
     if dst_host is None: return " " 
     src_port = Completer("src port")(default=dst_port)
     if src_port is None: return " " 

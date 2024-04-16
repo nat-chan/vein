@@ -8,11 +8,6 @@ from pygments.lexers.python import PythonLexer
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.validation import Validator, ValidationError
 from prompt_toolkit.key_binding import KeyBindings
-
-bindings = KeyBindings()
-
-from pathlib import Path
-
 from paramiko import SSHConfig
 from pathlib import Path
 
@@ -36,6 +31,7 @@ class PortValidator(Validator):
         ):
             raise ValidationError(message='validation error')
 
+bindings = KeyBindings()
 @bindings.add('c-c')
 def _(event):
     event.app.exit()
@@ -56,7 +52,9 @@ class Completer:
         self.history_file = history_dir / f"{self.name.replace(' ', '_')}"
         self.history = FileHistory(self.history_file)
 
-    def __call__(self, default: str | None = None) -> str:
+    def __call__(self, default: str | int | None = None) -> str:
+        if type(default) is int:
+            default = self.candidate[default]
         if default is None:
             text = f"{self.name}: "
         else:
