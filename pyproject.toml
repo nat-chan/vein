@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.7.0",
     "rich-interactive>=0.6.0",
     "prompt-toolkit>=3.0.43",
+    "paramiko>=3.4.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.10"

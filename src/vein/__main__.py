@@ -25,6 +25,8 @@ import coloredlogs, logging
 coloredlogs.install()
 logger = logging.getLogger(__file__)
 
+from vein.completer import Completer
+
 
 def save_screen() -> None:
     sys.stdout.write('\033[?47h')
@@ -54,62 +56,37 @@ class ssh_info(BaseModel):
 def process_string(lines: list[str]) -> list[ssh_info]:
     result: list[ssh_info] = list()
     for line in lines:
-        splitted = line.split()
-        pid = int(splitted[0])
-        LR = splitted[2][-1]
-        dst_host = splitted[4]
-        src_port, src_host, dst_port = splitted[3].split(":")
-        result.append(ssh_info(
-            pid=pid,
-            LR=LR,
-            dst_host=dst_host,
-            src_port=int(src_port),
-            dst_port=int(dst_port),
-            src_host=src_host,
-        ))
+        try:
+            splitted = line.split()
+            pid = int(splitted[0])
+            LR = splitted[2][-1]
+            dst_host = splitted[4]
+            src_port, src_host, dst_port = splitted[3].split(":")
+            result.append(ssh_info(
+                pid=pid,
+                LR=LR,
+                dst_host=dst_host,
+                src_port=int(src_port),
+                dst_port=int(dst_port),
+                src_host=src_host,
+            ))
+        except ValueError:
+            pass
     return result
 
-def pformat(ssh_info: ssh_info) -> str:
-    return f"{ssh_info.pid} {ssh_info.src_host} {ssh_info.dst_host} {ssh_info.src_port}:{ssh_info.src_host}:{ssh_info.dst_port} {ssh_info.LR}"
-
 def process_creator():
-    try:
-        while True:
-            dst_port = rich.prompt.IntPrompt.ask(
-                "dst_port",
-                default=8188,
-            )
-            if dst_port in range(65536):
-                break
-
-        while True:
-            dst_host = rich.prompt.Prompt.ask(
-                "dst_host",
-                default="marisa",
-            )
-            if True:
-                break
-
-        while True:
-            src_port = rich.prompt.IntPrompt.ask(
-                "src_port",
-                default=dst_port,
-            )
-            if src_port in range(65536):
-                break
-
-        while True:
-            src_host = rich.prompt.Prompt.ask(
-                "src_host",
-                default="localhost",
-            )
-            if True:
-                break
-        cmd = f"autossh -fNL {dst_port}:{src_host}:{src_port} {dst_host}"
-        result = subprocess.run(cmd, shell=True)
-        assert result.returncode == 0
-    finally:
-        return ' '
+    dst_port = Completer("dst port")(default="8188")
+    if dst_port is None: return " " 
+    dst_host = Completer("dst host")(default="marisa")
+    if dst_host is None: return " " 
+    src_port = Completer("src port")(default=dst_port)
+    if src_port is None: return " " 
+    src_host = Completer("src host")(default="localhost")
+    if src_host is None: return " " 
+    cmd = f"autossh -fNL {dst_port}:{src_host}:{src_port} {dst_host}"
+    result = subprocess.run(cmd, shell=True)
+    assert result.returncode == 0
+    return " "
 
 
 def process_selecter() -> str:
