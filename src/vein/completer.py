@@ -20,18 +20,14 @@ def list_ssh_hosts() -> list[str]:
     flatten = [host for host in flatten if "*" not in host]
     return flatten
 
-
-# 単語の候補
-my_completer = FuzzyWordCompleter(
-    ["apple", "goole", "japan", "hoge", "hello world", "good morning"]
-)
-
 class Completer:
     def __init__(self, name: str):
         if "host" in name:
             self.candidate = list_ssh_hosts()
         elif "port" in name:
             self.candidate = ["7860", "7861", "7862", "7863", "8188", "22", "10022", "80", "443"]
+        else:
+            self.candidate = []
         self.name = name
         history_dir = Path.home()/".local/share/vein/history"
         history_dir.mkdir(parents=True, exist_ok=True)
@@ -41,11 +37,12 @@ class Completer:
     def __call__(self) -> str:
         user_input = prompt(
             f"{self.name} > ",
-            completer=my_completer,
+            completer=FuzzyWordCompleter(self.candidate),
             history=self.history)
         return user_input
 
-while 1:
-    user_input = Completer("src port")()
-    print(user_input)
+if __name__ == "__main__":
+    while True:
+        user_input = Completer("src host")()
+        print(user_input)
 
