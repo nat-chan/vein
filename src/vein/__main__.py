@@ -83,7 +83,7 @@ def process_creator():
     if src_port is None: return " " 
     src_host = Completer("src host")(default="localhost")
     if src_host is None: return " " 
-    cmd = f"autossh -fNL {dst_port}:{src_host}:{src_port} {dst_host}"
+    cmd = f"autossh -fNL {src_port}:{src_host}:{dst_port} {dst_host}"
     result = subprocess.run(cmd, shell=True)
     assert result.returncode == 0
     return " "
