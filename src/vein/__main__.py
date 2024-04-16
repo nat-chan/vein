@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import coloredlogs, logging
 import sys
 import select
 import termios
 import tty
 import subprocess
 from pydantic import BaseModel
-import rich.prompt
 import io
 import itertools
 from os import kill
 from signal import SIGTERM
-
-coloredlogs.install()
-logger = logging.getLogger(__file__)
-
 import rich
+import rich.prompt
 from rich.style import Style
 from rich.align import Align
 from rich.console import Group
@@ -25,6 +20,11 @@ from rich.text import Text
 from rich_interactive.interactive_table import InteractiveTable as Table
 from rich_interactive.interactive_panel import InteractivePanel as Panel
 from rich_interactive.interactive_layout import InteractiveLayout as Layout
+
+import coloredlogs, logging
+coloredlogs.install()
+logger = logging.getLogger(__file__)
+
 
 def save_screen() -> None:
     sys.stdout.write('\033[?47h')
@@ -43,8 +43,12 @@ class ssh_info(BaseModel):
     src_port: int
     dst_port: int
     LR: str
-    def kill(self):
-        kill(self.pid, SIGTERM)
+    def kill(self) -> bool:
+        try:
+            kill(self.pid, SIGTERM)
+        except:
+            return False
+        return True
 
 # 文字列処理
 def process_string(lines: list[str]) -> list[ssh_info]:
@@ -140,7 +144,6 @@ def process_selecter() -> str:
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         tty.setraw(sys.stdin.fileno())
-        sys.stdout.write('\033[?s')
         for i in itertools.count():
             out = io.StringIO()
             console = rich.console.Console(force_terminal=True, file=out)
