@@ -182,7 +182,6 @@ def process_selecter() -> str:
                             justify="center"
                         )
                     ),
-                    style="on black",
                 )
             )
             print("\033[2J\033[H", end="", flush=True)
